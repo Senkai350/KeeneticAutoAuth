@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Keenetic Auto Auth",
+  "version": "1.0.0",
+  "description": "Автоматическая авторизация в веб-панели Keenetic",
+  "permissions": [
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
