@@ -1,4 +1,5 @@
 import {
+  buildBackgroundTabUrl,
   buildMatchPatterns,
   CONTENT_SCRIPT_ID,
   loadConfig,
@@ -53,6 +54,15 @@ function waitTabComplete(tabId: number): Promise<void> {
   });
 }
 
+function isFrameRemovedError(err: unknown): boolean {
+  const msg = (err as Error).message ?? '';
+  return /frame with id \d+ was removed/i.test(msg);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => { setTimeout(resolve, ms); });
+}
+
 async function injectPageRunner(tabId: number): Promise<void> {
   await chrome.scripting.executeScript({
     target: { tabId },
@@ -61,7 +71,7 @@ async function injectPageRunner(tabId: number): Promise<void> {
   });
 }
 
-async function runInTab<T>(
+async function runInTabOnce<T>(
   tabId: number,
   run: 'auth' | 'rci',
   cfg: KeeneticConfig,
@@ -97,12 +107,35 @@ async function runInTab<T>(
   return payload?.data as T;
 }
 
+async function runInTab<T>(
+  tabId: number,
+  run: 'auth' | 'rci',
+  cfg: KeeneticConfig,
+  endpoint?: string,
+): Promise<T> {
+  const attempts = 3;
+  let lastError: unknown;
+
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await runInTabOnce(tabId, run, cfg, endpoint);
+    } catch (err) {
+      lastError = err;
+      if (!isFrameRemovedError(err) || i === attempts - 1) throw err;
+      await waitTabComplete(tabId);
+      await delay(200);
+    }
+  }
+
+  throw lastError;
+}
+
 async function runOnHiddenTab(
   cfg: KeeneticConfig,
   run: 'auth' | 'rci',
   endpoint?: string,
 ): Promise<unknown> {
-  const url = `http://${cfg.ipAddr}/`;
+  const url = buildBackgroundTabUrl(cfg.ipAddr);
   const tab = await chrome.tabs.create({ url, active: false });
 
   if (!tab.id) throw new Error('Не удалось открыть вкладку роутера');

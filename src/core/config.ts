@@ -3,6 +3,9 @@ import type { KeeneticConfig } from './keenetic';
 export const STORAGE_KEY = 'keenetic_config';
 export const CONTENT_SCRIPT_ID = 'keenetic-auto-auth';
 
+/** Служебные вкладки (кнопка «Тест», auth без sender.tab) — без content-script. */
+export const BACKGROUND_TAB_PARAM = 'kaa_background';
+
 export function loadConfig(): Promise<KeeneticConfig | null> {
   return new Promise(resolve => {
     chrome.storage.local.get(STORAGE_KEY, result => {
@@ -40,8 +43,25 @@ export function isRouterHost(cfg: KeeneticConfig): boolean {
   return pagePort === port;
 }
 
-/** Не запускать авто-логин на дашборде. */
+export function buildRouterUrl(ipAddr: string, search?: string): string {
+  const base = `http://${ipAddr.trim()}/`;
+  if (!search) return base;
+  const q = search.startsWith('?') ? search.slice(1) : search;
+  return `${base}?${q}`;
+}
+
+export function buildBackgroundTabUrl(ipAddr: string): string {
+  return buildRouterUrl(
+    ipAddr,
+    `${BACKGROUND_TAB_PARAM}=1`,
+  );
+}
+
+/** Не запускать авто-логин на дашборде и на служебных вкладках background. */
 export function shouldSkipAutoAuth(): boolean {
   const path = location.pathname;
-  return path === '/dashboard' || path.startsWith('/dashboard/');
+  if (path === '/dashboard' || path.startsWith('/dashboard/')) {
+    return true;
+  }
+  return new URLSearchParams(location.search).has(BACKGROUND_TAB_PARAM);
 }
